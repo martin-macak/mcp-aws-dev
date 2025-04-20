@@ -1,16 +1,13 @@
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
-import anyio
-import click
-import httpx
-import mcp.types as types
-from mcp.server.fastmcp import Context, FastMCP
+
+from mcp.server.fastmcp import FastMCP
 
 if __name__ == "server_module":
     # get parent folder of this module
     import sys
     from pathlib import Path
-    from os.path import dirname
+
     sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 
@@ -32,4 +29,16 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
         # Cleanup on shutdown
         pass
 
+
 mcp = FastMCP("AWS Developer", lifespan=app_lifespan)
+
+
+@mcp.tool("aws_dev_kokot")
+def kokot() -> str:
+    """
+    Returns kokot and does nothing else.
+
+    Returns:
+        str: kokot
+    """
+    return "kokot"

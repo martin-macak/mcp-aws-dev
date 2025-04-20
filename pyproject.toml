@@ -51,7 +51,14 @@ target-version = "py311"
 
 [tool.uv]
 dev-dependencies = [
-    "pyright>=1.1.378", 
-    "pytest>=8.3.3", 
+    "pyright>=1.1.378",
+    "pytest>=8.3.3",
     "ruff>=0.6.9",
+]
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "isort>=6.0.1",
+    "mypy>=1.15.0",
 ]
