@@ -1,14 +1,46 @@
 from dataclasses import dataclass
+import functools
 import subprocess
 import os
 import sys
+import random
+import string
+import docker
 from pathlib import Path
 from typing import Dict, Optional, Tuple
+
+from mcp_aws_dev.context import SessionCredentials
+
+@functools.cache
+def create_image() -> str:
+    """
+    Build a Docker image using the Dockerfile in the mcp_aws_dev package.
+    
+    :return: The name of the created Docker image
+    """
+    # Generate a random string for the image name
+    random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    image_name = f"mcp_aws_{random_suffix}"
+    
+    # Get the path to the Dockerfile
+    package_dir = Path(__file__).parent
+    dockerfile_path = package_dir / "Dockerfile"
+    
+    # Build the Docker image
+    client = docker.from_env()
+    client.images.build(
+        path=str(package_dir),
+        dockerfile=str(dockerfile_path),
+        tag=image_name
+    )
+    
+    return image_name
 
 
 def run_in_jail(
     work_dir: Path,
     script: str,
+    aws_credentials: SessionCredentials,
     env: Optional[Dict[str, str]] = None
 ) -> Tuple[str, str, int]:
     """
@@ -17,114 +49,58 @@ def run_in_jail(
     
     :param work_dir: Path to the directory where the script will run and have access
     :param script: Content of the Python script to execute
+    :param aws_credentials: AWS credentials to use in the container
     :param env: Optional environment variables to set for the script
     :return: Tuple containing (stdout, stderr, return_code)
     """
-    # Ensure work_dir exists
-    work_dir = Path(work_dir).resolve()
-    work_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Write the script to work_dir/script.py
+    # Create a temporary script file in the work directory
     script_path = work_dir / "script.py"
-    script_path.write_text(script)
+    with open(script_path, "w") as f:
+        f.write(script)
     
-    # Create a wrapper script that will set up the jail
-    wrapper_path = work_dir / "jail_wrapper.py"
+    # Get the Docker image name
+    image_name = create_image()
     
-    # Get Python installation paths that should be readable
-    python_path = sys.executable
+    # Set up environment variables
+    docker_env = {
+        "AWS_DEFAULT_REGION": os.environ.get("AWS_DEFAULT_REGION", ""),
+        "AWS_REGION": os.environ.get("AWS_REGION", ""),
+        "AWS_ACCESS_KEY_ID": aws_credentials.access_key,
+        "AWS_ACCOUNT_ID": aws_credentials.account_id,
+        "AWS_SECRET_ACCESS_KEY": aws_credentials.secret_key,
+        "AWS_SESSION_TOKEN": aws_credentials.session_token,
+    }
     
-    # Handle the case where sys.__file__ is not available (Python 3.13+)
-    try:
-        python_lib_path = Path(sys.__file__).parent
-    except AttributeError:
-        # For Python 3.13+, we need to use a different approach
-        # We'll use sys.prefix which is always available
-        python_lib_path = Path(sys.prefix) / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}"
-    
-    site_packages_paths = []
-    
-    for path in sys.path:
-        if path and Path(path).exists() and "site-packages" in path:
-            site_packages_paths.append(path)
-    
-    # Prepare environment variables
-    exec_env = os.environ.copy()
+    # Add any additional environment variables
     if env:
-        exec_env.update(env)
+        docker_env.update(env)
     
-    # Get the home directory for .aws access from environment
-    home_dir = Path(exec_env.get("HOME", str(Path.home())))
-    aws_dir = home_dir / ".aws"
-    
-    # Create the wrapper script
-    wrapper_code = f"""
-import os
-import sys
-import builtins
-from pathlib import Path
-
-# The allowed directory for read/write access
-ALLOWED_DIR = "{work_dir}"
-
-# The AWS directory for read-only access
-AWS_DIR = "{aws_dir}"
-
-# Original built-in open function
-original_open = builtins.open
-
-# Override the built-in open() function to restrict file access
-def restricted_open(file, mode='r', *args, **kwargs):
-    file_path = Path(file).resolve()
-    
-    # Allow read access to Python installation directories
-    if any(str(file_path).startswith(str(p)) for p in [
-        "{python_lib_path}",  # Python standard library
-        {", ".join(f'"{p}"' for p in site_packages_paths)}  # Site packages
-    ]):
-        if 'w' not in mode and 'a' not in mode and '+' not in mode:
-            return original_open(file, mode, *args, **kwargs)
-        else:
-            raise PermissionError(f"Write access denied to {{file_path}}")
-    
-    # Allow read-only access to .aws directory
-    if str(file_path).startswith(str(AWS_DIR)):
-        if 'w' not in mode and 'a' not in mode and '+' not in mode:
-            return original_open(file, mode, *args, **kwargs)
-        else:
-            raise PermissionError(f"Write access denied to {{file_path}}")
-    
-    # Check if the file is within the allowed directory
-    if str(file_path).startswith(str(Path("{work_dir}").resolve())):
-        return original_open(file, mode, *args, **kwargs)
-    
-    # Deny access to all other files
-    raise PermissionError(f"Access to {{file_path}} is not allowed")
-
-# Apply the restriction
-builtins.open = restricted_open
-
-# Execute the target script
-with original_open("{script_path}", 'r') as f:
-    code = compile(f.read(), "{script_path}", 'exec')
-    # Set up a clean globals dictionary
-    globals_dict = {{
-        '__name__': '__main__',
-        '__file__': "{script_path}",
-        '__builtins__': __builtins__
-    }}
-    exec(code, globals_dict)
-"""
-    
-    wrapper_path.write_text(wrapper_code)
-    
-    # Run the wrapper script which will execute the target script in the jail
-    process = subprocess.run(
-        [sys.executable, str(wrapper_path)],
-        cwd=str(work_dir),
-        env=exec_env,
-        capture_output=True,
-        text=True
+    # Create and run the Docker container
+    client = docker.from_env()
+    container = client.containers.run(
+        image=image_name,
+        command=["python", "/workspace/script.py"],
+        environment=docker_env,
+        volumes={
+            str(work_dir): {
+                "bind": "/workspace",
+                "mode": "rw"
+            }
+        },
+        detach=True
     )
     
-    return process.stdout, process.stderr, process.returncode
+    # Wait for the container to finish
+    result = container.wait()
+    return_code = result["StatusCode"]
+    
+    # Get the logs
+    logs = container.logs().decode("utf-8")
+    
+    # Remove the container
+    container.remove()
+    
+    # Split logs into stdout and stderr
+    # Docker combines stdout and stderr in the logs, so we'll just return the combined output
+    # and the return code
+    return logs, "", return_code

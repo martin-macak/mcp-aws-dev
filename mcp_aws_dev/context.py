@@ -11,6 +11,33 @@ from dataclasses import dataclass
 from pydantic import BaseModel, Field
 
 
+class SessionCredentials(BaseModel):
+    """Represents session credentials for an AWS profile.
+
+    :ivar account_id: The account ID for the AWS profile.
+    :type account_id: str
+    :ivar access_key: The access key for the AWS profile.
+    :type access_key: str
+    :ivar secret_key: The secret key for the AWS profile.
+    :type secret_key: str
+    :ivar session_token: The session token for the AWS profile.
+    :type session_token: str
+    """
+
+    access_key: str = Field(
+        description="The access key for the AWS profile."
+    )
+    secret_key: str = Field(
+        description="The secret key for the AWS profile."
+    )
+    session_token: str = Field(
+        description="The session token for the AWS profile."
+    )
+    account_id: str = Field(
+        description="The account ID for the AWS profile."
+    )
+
+
 class AWSProfile(BaseModel):
     """Represents an AWS profile configuration.
 
@@ -34,14 +61,20 @@ class AWSContext(BaseModel):
         description="The name of the AWS profile to use for AWS operations."
     )
 
-    def get_session(self) -> boto3.Session:
-        """Creates a new boto3 session for the current AWS profile.
+    def get_session_credentials(self) -> SessionCredentials:
+        """Get session credentials for the AWS profile.
 
-        :return: A boto3 session configured with the current profile_name.
-        :rtype: boto3.Session
+        :return: Session credentials for the AWS profile.
+        :rtype: dict
         """
-        return boto3.Session(profile_name=self.profile_name)
-
+        
+        credentials = boto3.Session(profile_name=self.profile_name).get_credentials()
+        return SessionCredentials(
+            access_key=credentials.access_key,
+            secret_key=credentials.secret_key,
+            session_token=credentials.token,
+            account_id=credentials.account_id,
+        )
 
 class AppContext(BaseModel):
     """Represents the application context configuration.
@@ -54,36 +87,3 @@ class AppContext(BaseModel):
         description="The AWS context configuration containing profile settings."
     )
 
-
-def create_session(
-    profile_name: str,
-) -> boto3.Session:
-    """Creates a new boto3 session for the given profile name.
-
-    :param profile_name: The name of the AWS profile to use.
-    :type profile_name: str
-    :return: A boto3 session configured with the given profile name.
-    :rtype: boto3.Session
-    """
-
-    cache_hash = int(time.time() / 3600)
-    return _create_session_cached(profile_name, cache_hash)
-
-
-@functools.cache
-def _create_session_cached(
-    profile_name: str,
-    _cache_hash: int,
-) -> boto3.Session:
-    """Creates a new boto3 session for the given profile name.
-
-    :param profile_name: The name of the AWS profile to use.
-    :type profile_name: str
-    :param _cache_hash: Cache invalidation hash.
-    :type _cache_hash: int
-    :return: A boto3 session configured with the given profile name.
-    :rtype: boto3.Session
-    """
-
-    del _cache_hash
-    return boto3.Session(profile_name=profile_name)

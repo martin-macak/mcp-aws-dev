@@ -36,3 +36,11 @@ def configure_logging():
     # Log that testing has started
     root_logger.info("Logging has been configured for tests")
     package_logger.debug("mcp_aws_dev package logger initialized at DEBUG level")
+
+
+def pytest_configure(config):
+    """Register custom markers."""
+    config.addinivalue_line(
+        "markers",
+        "docker: mark test as requiring docker"
+    )
