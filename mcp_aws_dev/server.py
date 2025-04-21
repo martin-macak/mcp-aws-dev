@@ -65,6 +65,9 @@ def aws_dev_run_script(
     Boto3 session should be created with default credentials chain, so AWS_PROFILE is
     properly used. AWS_PROFILE is properly set by executing this tool.
 
+    Jailed script MUST NOT use subprocess module.
+    Jailed script MUST NOT execute system commands.
+
     This tool returns a tuple with stdout, stderr and return code of the script.
     """
 
@@ -83,6 +86,7 @@ def aws_dev_run_script(
             "AWS_PROFILE": profile_name,
             "AWS_DEFAULT_REGION": "eu-west-1",
             "AWS_REGION": "eu-west-1",
+            "HOME": str(Path.home()),
         },  
     )
 
