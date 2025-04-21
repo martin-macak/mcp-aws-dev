@@ -208,4 +208,41 @@ for var_name, value in env_vars.items():
     assert "TEST_VAR1=Value 1" in stdout
     assert "TEST_VAR2=Value 2" in stdout
     assert "TEST_VAR3=Value 3" in stdout
+    assert stderr == ""
+
+
+@pytest.mark.parametrize("package_name,should_be_available", [
+    ("boto3", True),
+    ("yaml", True),
+    ("tomli", True),
+    ("jq", True),
+    ("foobar", False),
+])
+def test_run_in_jail_package_availability(temp_work_dir, package_name, should_be_available):
+    """
+    Test that specified packages are available or not available in the jail environment.
+    
+    This test verifies that packages installed with this project are accessible
+    to scripts running in the jail, and that non-existent packages are properly
+    reported as unavailable.
+    
+    :param package_name: Name of the package to check
+    :param should_be_available: Whether the package should be available
+    """
+    script = f"""
+try:
+    import {package_name}
+    print("{package_name} is available")
+    print(f"{package_name} version: {{getattr({package_name}, '__version__', 'unknown')}}")
+except ImportError as e:
+    print(f"{package_name} is not available: {{e}}")
+"""
+    stdout, stderr, return_code = run_in_jail(temp_work_dir, script)
+    
+    assert return_code == 0
+    if should_be_available:
+        assert f"{package_name} is available" in stdout
+        assert f"{package_name} version:" in stdout
+    else:
+        assert f"{package_name} is not available" in stdout
     assert stderr == "" 
