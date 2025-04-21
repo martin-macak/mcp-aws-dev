@@ -38,7 +38,7 @@ def aws_dev_get_profile(ctx: Context) -> str:
 def aws_dev_change_profile(
     profile_name: str,
     ctx: Context,
-) -> None:
+) -> str:
     """
     Change the AWS profile.
     This will change the profile for the current session.
