@@ -48,6 +48,15 @@ def run_in_jail(
         if path and Path(path).exists() and "site-packages" in path:
             site_packages_paths.append(path)
     
+    # Prepare environment variables
+    exec_env = os.environ.copy()
+    if env:
+        exec_env.update(env)
+    
+    # Get the home directory for .aws access from environment
+    home_dir = Path(exec_env.get("HOME", str(Path.home())))
+    aws_dir = home_dir / ".aws"
+    
     # Create the wrapper script
     wrapper_code = f"""
 import os
@@ -57,6 +66,9 @@ from pathlib import Path
 
 # The allowed directory for read/write access
 ALLOWED_DIR = "{work_dir}"
+
+# The AWS directory for read-only access
+AWS_DIR = "{aws_dir}"
 
 # Original built-in open function
 original_open = builtins.open
@@ -70,6 +82,13 @@ def restricted_open(file, mode='r', *args, **kwargs):
         "{python_lib_path}",  # Python standard library
         {", ".join(f'"{p}"' for p in site_packages_paths)}  # Site packages
     ]):
+        if 'w' not in mode and 'a' not in mode and '+' not in mode:
+            return original_open(file, mode, *args, **kwargs)
+        else:
+            raise PermissionError(f"Write access denied to {{file_path}}")
+    
+    # Allow read-only access to .aws directory
+    if str(file_path).startswith(str(AWS_DIR)):
         if 'w' not in mode and 'a' not in mode and '+' not in mode:
             return original_open(file, mode, *args, **kwargs)
         else:
@@ -98,11 +117,6 @@ with original_open("{script_path}", 'r') as f:
 """
     
     wrapper_path.write_text(wrapper_code)
-    
-    # Prepare environment variables
-    exec_env = os.environ.copy()
-    if env:
-        exec_env.update(env)
     
     # Run the wrapper script which will execute the target script in the jail
     process = subprocess.run(

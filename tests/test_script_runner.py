@@ -245,4 +245,93 @@ except ImportError as e:
         assert f"{package_name} version:" in stdout
     else:
         assert f"{package_name} is not available" in stdout
-    assert stderr == "" 
+    assert stderr == ""
+
+
+def test_run_in_jail_aws_directory_access(temp_work_dir):
+    """
+    Test that read-only access to the .aws directory is allowed.
+    
+    This test verifies that the script can read files from the .aws directory
+    but cannot write to it.
+    """
+    # Create a mock .aws directory in the temp directory for testing
+    mock_aws_dir = temp_work_dir / ".aws"
+    mock_aws_dir.mkdir(exist_ok=True)
+    
+    # Create a mock config file in the mock .aws directory
+    mock_config_file = mock_aws_dir / "config"
+    mock_config_file.write_text("[default]\nregion = us-west-2")
+    
+    # Create a mock credentials file in the mock .aws directory
+    mock_credentials_file = mock_aws_dir / "credentials"
+    mock_credentials_file.write_text("[default]\naws_access_key_id = AKIA1234567890\naws_secret_access_key = secret")
+    
+    # Create a script that tries to read from the .aws directory
+    script = """
+import os
+from pathlib import Path
+
+# Get the home directory
+home_dir = Path.home()
+aws_dir = home_dir / ".aws"
+
+print(f"Home directory: {home_dir}")
+print(f"AWS directory: {aws_dir}")
+
+# Try to read from the .aws directory
+try:
+    # Try to read the config file
+    config_path = aws_dir / "config"
+    if config_path.exists():
+        with open(config_path, 'r') as f:
+            config_content = f.read()
+            print(f"Config content: {config_content}")
+    else:
+        print("Config file does not exist")
+    
+    # Try to read the credentials file
+    credentials_path = aws_dir / "credentials"
+    if credentials_path.exists():
+        with open(credentials_path, 'r') as f:
+            credentials_content = f.read()
+            print(f"Credentials content: {credentials_content}")
+    else:
+        print("Credentials file does not exist")
+    
+    # Try to write to the .aws directory (should fail)
+    try:
+        with open(aws_dir / "test.txt", 'w') as f:
+            f.write("This should fail")
+        print("Write to .aws directory succeeded (should not happen)")
+    except PermissionError as e:
+        print(f"Write to .aws directory denied: {e}")
+    
+    print("AWS directory access test completed")
+except Exception as e:
+    print(f"Error accessing .aws directory: {e}")
+"""
+    
+    # Set up environment variables to point to our mock .aws directory
+    env = {
+        "HOME": str(temp_work_dir),
+    }
+    
+    stdout, stderr, return_code = run_in_jail(temp_work_dir, script, env)
+    
+    assert return_code == 0
+    assert "AWS directory access test completed" in stdout
+    
+    # Check that the script could read the config file
+    assert "Config content: [default]" in stdout
+    assert "region = us-west-2" in stdout
+    
+    # Check that the script could read the credentials file
+    assert "Credentials content: [default]" in stdout
+    assert "aws_access_key_id = AKIA1234567890" in stdout
+    assert "aws_secret_access_key = secret" in stdout
+    
+    # Check that the script could not write to the .aws directory
+    assert "Write access denied to" in stdout
+    assert "test.txt" in stdout
+    assert "Write to .aws directory succeeded" not in stdout 

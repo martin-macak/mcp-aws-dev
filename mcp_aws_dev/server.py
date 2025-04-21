@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import AsyncIterator, Tuple
 
 from mcp.server.fastmcp import Context, FastMCP
 
@@ -46,6 +46,51 @@ def aws_dev_change_profile(
 
     app_ctx: AppContext = ctx.request_context.lifespan_context
     app_ctx.aws_context.profile_name = profile_name
+
+
+@mcp.tool("aws_dev_run_script")
+def aws_dev_run_script(
+    script: str,
+    ctx: Context,
+) -> Tuple[str, str, int]:
+    """
+    Runs a python 3.11+ script with current AWS profile.
+    This script is run in a jail environment with the current AWS profile. 
+    This script has following packages available:
+    - boto3
+    - botocore
+    - jq
+    - yaml
+    - tomli
+    Boto3 session should be created with default credentials chain, so AWS_PROFILE is
+    properly used. AWS_PROFILE is properly set by executing this tool.
+
+    This tool returns a tuple with stdout, stderr and return code of the script.
+    """
+
+    import tempfile
+    from pathlib import Path
+    from mcp_aws_dev.script_runner import run_in_jail
+
+    app_ctx: AppContext = ctx.request_context.lifespan_context
+    profile_name = app_ctx.aws_context.profile_name
+
+    work_dir = Path(tempfile.mkdtemp())
+    stdout, stderr, return_code = run_in_jail(
+        work_dir,
+        script,
+        env={
+            "AWS_PROFILE": profile_name,
+            "AWS_DEFAULT_REGION": "eu-west-1",
+            "AWS_REGION": "eu-west-1",
+        },  
+    )
+
+    if return_code != 0:
+        raise Exception(f"Script failed with return code {return_code}")
+
+    return stdout, stderr, return_code
+    
 
 
 def main():
