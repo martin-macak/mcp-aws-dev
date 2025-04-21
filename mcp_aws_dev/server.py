@@ -62,8 +62,9 @@ def aws_dev_run_script(
     - jq
     - yaml
     - tomli
-    Boto3 session should be created with default credentials chain, so AWS_PROFILE is
-    properly used. AWS_PROFILE is properly set by executing this tool.
+    
+    AWS credentials environment variables are set automatically, so initialize
+    boto3 sessions in the script with default credentials chain.
 
     Jailed script MUST NOT use subprocess module.
     Jailed script MUST NOT execute system commands.
@@ -85,7 +86,6 @@ def aws_dev_run_script(
         script=script,
         aws_credentials=credentials,
         env={
-            "AWS_PROFILE": profile_name,
         },  
     )
 
