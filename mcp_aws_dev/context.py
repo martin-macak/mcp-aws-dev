@@ -14,8 +14,6 @@ from pydantic import BaseModel, Field
 class SessionCredentials(BaseModel):
     """Represents session credentials for an AWS profile.
 
-    :ivar account_id: The account ID for the AWS profile.
-    :type account_id: str
     :ivar access_key: The access key for the AWS profile.
     :type access_key: str
     :ivar secret_key: The secret key for the AWS profile.
@@ -32,9 +30,6 @@ class SessionCredentials(BaseModel):
     )
     session_token: str = Field(
         description="The session token for the AWS profile."
-    )
-    account_id: str = Field(
-        description="The account ID for the AWS profile."
     )
 
 
@@ -73,7 +68,6 @@ class AWSContext(BaseModel):
             access_key=credentials.access_key,
             secret_key=credentials.secret_key,
             session_token=credentials.token,
-            account_id=credentials.account_id,
         )
 
 class AppContext(BaseModel):

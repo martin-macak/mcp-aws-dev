@@ -74,7 +74,6 @@ def test_run_in_jail():
             access_key="test_access_key",
             secret_key="test_secret_key",
             session_token="test_session_token",
-            account_id="123456789012"
         )
         
         # Set up environment variables for testing
@@ -125,7 +124,6 @@ def test_run_in_jail():
             assert env["AWS_DEFAULT_REGION"] == "us-east-1"
             assert env["AWS_REGION"] == "us-east-1"
             assert env["AWS_ACCESS_KEY_ID"] == "test_access_key"
-            assert env["AWS_ACCOUNT_ID"] == "123456789012"
             assert env["AWS_SECRET_ACCESS_KEY"] == "test_secret_key"
             assert env["AWS_SESSION_TOKEN"] == "test_session_token"
             
@@ -166,7 +164,6 @@ def test_run_in_jail_with_additional_env():
             access_key="test_access_key",
             secret_key="test_secret_key",
             session_token="test_session_token",
-            account_id="123456789012"
         )
         
         # Set up additional environment variables
@@ -236,7 +233,6 @@ sys.exit(42)
             access_key="test_access_key",
             secret_key="test_secret_key",
             session_token="test_session_token",
-            account_id="123456789012"
         )
         
         # Set up additional environment variables

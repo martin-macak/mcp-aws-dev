@@ -77,16 +77,15 @@ def aws_dev_run_script(
 
     app_ctx: AppContext = ctx.request_context.lifespan_context
     profile_name = app_ctx.aws_context.profile_name
+    credentials = app_ctx.aws_context.get_session_credentials()
 
     work_dir = Path(tempfile.mkdtemp())
     stdout, stderr, return_code = run_in_jail(
-        work_dir,
-        script,
+        work_dir=work_dir,
+        script=script,
+        aws_credentials=credentials,
         env={
             "AWS_PROFILE": profile_name,
-            "AWS_DEFAULT_REGION": "eu-west-1",
-            "AWS_REGION": "eu-west-1",
-            "HOME": str(Path.home()),
         },  
     )
 

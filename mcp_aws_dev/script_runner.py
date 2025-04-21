@@ -63,12 +63,12 @@ def run_in_jail(
     
     # Set up environment variables
     docker_env = {
-        "AWS_DEFAULT_REGION": os.environ.get("AWS_DEFAULT_REGION", ""),
-        "AWS_REGION": os.environ.get("AWS_REGION", ""),
+        "AWS_DEFAULT_REGION": os.environ.get("AWS_DEFAULT_REGION", "eu-west-1"),
+        "AWS_REGION": os.environ.get("AWS_REGION", "eu-west-1"),
         "AWS_ACCESS_KEY_ID": aws_credentials.access_key,
-        "AWS_ACCOUNT_ID": aws_credentials.account_id,
         "AWS_SECRET_ACCESS_KEY": aws_credentials.secret_key,
         "AWS_SESSION_TOKEN": aws_credentials.session_token,
+        **(env or {}),
     }
     
     # Add any additional environment variables
