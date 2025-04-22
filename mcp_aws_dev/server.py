@@ -1,5 +1,7 @@
 import json
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator, Tuple
 
 import boto3
@@ -55,11 +57,14 @@ def aws_dev_change_profile(
 @mcp.tool("aws_dev_get_dynamodb_schema")
 def aws_dev_get_dynamodb_schema(
     table_name: str,
+    artifact_name: str,
     ctx: Context,
 ) -> str:
     """
-    Get the schema for a DynamoDB table.
+    Get the schema for a DynamoDB table and save it to an artifact file with given name.
     Schema is in JSONSchema-Draft-04 format.
+    The artifact is saved in the MCP_ARTIFACT_DIR environment variable.
+    Returns the path to the artifact file.
     """
     app_ctx: AppContext = ctx.request_context.lifespan_context
     profile_name = app_ctx.aws_context.profile_name
@@ -72,7 +77,12 @@ def aws_dev_get_dynamodb_schema(
         table_name=table_name,
     )
     schema = analyzer.get_table_schema()
-    return json.dumps(schema)
+    schema_str = json.dumps(schema)
+
+    artifact_dir = Path(os.environ["MCP_ARTIFACT_DIR"])
+    artifact_path = artifact_dir / artifact_name
+    artifact_path.write_text(schema_str)
+    return str(artifact_path)
 
 
 @mcp.tool("aws_dev_run_script")

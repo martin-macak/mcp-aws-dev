@@ -46,7 +46,7 @@ class DynamoDBSchemaAnalyzer:
                 RegistryName=registry_name,
                 SchemaName=schema_name,
             )
-            return response["Content"]
+            return json.loads(response["Content"])
         except ClientError as e:
             if (
                 e.response["Error"]["Code"] == "ResourceNotFoundException"

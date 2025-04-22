@@ -209,7 +209,7 @@ def test_get_table_schema_existing_schema(analyzer, monkeypatch):
 
     result = analyzer.get_table_schema()
 
-    assert result == '{"type": "object", "properties": {}}'
+    assert result == json.loads('{"type": "object", "properties": {}}')
     assert mock_schemas_client.describe_schema.call_count == 2
     mock_schemas_client.describe_schema.assert_has_calls(
         [
