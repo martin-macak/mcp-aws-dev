@@ -3,11 +3,7 @@
 This module provides data classes for managing AWS profiles and application context.
 """
 
-import functools
-import os
-import time
 import boto3
-from dataclasses import dataclass
 from pydantic import BaseModel, Field
 
 
@@ -22,15 +18,9 @@ class SessionCredentials(BaseModel):
     :type session_token: str
     """
 
-    access_key: str = Field(
-        description="The access key for the AWS profile."
-    )
-    secret_key: str = Field(
-        description="The secret key for the AWS profile."
-    )
-    session_token: str = Field(
-        description="The session token for the AWS profile."
-    )
+    access_key: str = Field(description="The access key for the AWS profile.")
+    secret_key: str = Field(description="The secret key for the AWS profile.")
+    session_token: str = Field(description="The session token for the AWS profile.")
 
 
 class AWSProfile(BaseModel):
@@ -62,13 +52,17 @@ class AWSContext(BaseModel):
         :return: Session credentials for the AWS profile.
         :rtype: dict
         """
-        
+
         credentials = boto3.Session(profile_name=self.profile_name).get_credentials()
+        if credentials is None:
+            raise ValueError("No credentials found for profile: " + self.profile_name)
+
         return SessionCredentials(
             access_key=credentials.access_key,
             secret_key=credentials.secret_key,
-            session_token=credentials.token,
+            session_token=credentials.token if credentials.token else "",
         )
+
 
 class AppContext(BaseModel):
     """Represents the application context configuration.
@@ -80,4 +74,3 @@ class AppContext(BaseModel):
     aws_context: AWSContext = Field(
         description="The AWS context configuration containing profile settings."
     )
-

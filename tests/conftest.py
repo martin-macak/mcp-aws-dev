@@ -40,7 +40,4 @@ def configure_logging():
 
 def pytest_configure(config):
     """Register custom markers."""
-    config.addinivalue_line(
-        "markers",
-        "docker: mark test as requiring docker"
-    )
+    config.addinivalue_line("markers", "docker: mark test as requiring docker")

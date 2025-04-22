@@ -5,7 +5,7 @@ PYTHON := uv run --project $$(pwd)
 UV := uv --project $$(pwd)
 
 # Default target
-all: lint format test build
+all: lint format mypy test build
 
 init:
 	$(UV) sync --dev
@@ -17,12 +17,17 @@ build:
 test:
 	$(PYTHON) -m pytest tests/ -v
 
+# Run mypy for type checking
+mypy:
+	$(PYTHON) -m mypy .
+
 # Run ruff for linting
 lint:
 	$(PYTHON) -m ruff check .
 
 # Run black for formatting
 format:
+	$(PYTHON) -m ruff format .
 	$(PYTHON) -m black .
 	$(PYTHON) -m isort .
 
