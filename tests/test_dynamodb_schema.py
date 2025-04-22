@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import boto3
 import pytest
+from botocore.exceptions import ClientError
 from moto import mock_aws
 
 from mcp_aws_dev.dynamodb_schema import DynamoDBSchemaAnalyzer
@@ -139,3 +140,138 @@ def test_open_sample_iterator_with_page_size(dynamodb_table):
         mock_paginator.paginate.assert_called_once()
         call_args = mock_paginator.paginate.call_args[1]
         assert call_args["PaginationConfig"]["PageSize"] == 5
+
+
+@pytest.fixture
+def mock_session():
+    """Create a mock boto3 session.
+
+    :return: A mock boto3 session
+    :rtype: MagicMock
+    """
+    return MagicMock(spec=boto3.Session)
+
+
+@pytest.fixture
+def analyzer(mock_session):
+    """Create a DynamoDBSchemaAnalyzer instance.
+
+    :param mock_session: A mock boto3 session
+    :type mock_session: MagicMock
+    :return: A DynamoDBSchemaAnalyzer instance
+    :rtype: DynamoDBSchemaAnalyzer
+    """
+    return DynamoDBSchemaAnalyzer(mock_session, "test-table")
+
+
+def test_get_table_schema_no_registry(analyzer, monkeypatch):
+    """Test get_table_schema when MCP_DATABASE_SCHEMA_REGISTRY is not set.
+
+    :param analyzer: A DynamoDBSchemaAnalyzer instance
+    :type analyzer: DynamoDBSchemaAnalyzer
+    :param monkeypatch: pytest monkeypatch fixture
+    :type monkeypatch: pytest.MonkeyPatch
+    """
+    monkeypatch.delenv("MCP_DATABASE_SCHEMA_REGISTRY", raising=False)
+
+    mock_schema = {"type": "object", "properties": {}}
+    analyzer.analyze = MagicMock(return_value=mock_schema)
+
+    result = analyzer.get_table_schema()
+
+    assert result == mock_schema
+    analyzer.analyze.assert_called_once()
+
+
+def test_get_table_schema_existing_schema(analyzer, monkeypatch):
+    """Test get_table_schema when schema exists in registry.
+
+    :param analyzer: A DynamoDBSchemaAnalyzer instance
+    :type analyzer: DynamoDBSchemaAnalyzer
+    :param monkeypatch: pytest monkeypatch fixture
+    :type monkeypatch: pytest.MonkeyPatch
+    """
+    monkeypatch.setenv("MCP_DATABASE_SCHEMA_REGISTRY", "test-registry")
+
+    mock_schemas_client = MagicMock()
+    mock_schemas_client.describe_schema.return_value = {}
+    mock_schemas_client.describe_schema_version.return_value = {
+        "Content": '{"type": "object", "properties": {}}'
+    }
+
+    analyzer.session.client.return_value = mock_schemas_client
+
+    result = analyzer.get_table_schema()
+
+    assert result == '{"type": "object", "properties": {}}'
+    mock_schemas_client.describe_schema.assert_called_once_with(
+        RegistryName="test-registry",
+        SchemaName="aws.dynamodb@test-table",
+    )
+    mock_schemas_client.describe_schema_version.assert_called_once_with(
+        RegistryName="test-registry",
+        SchemaName="aws.dynamodb@test-table",
+        SchemaVersion="LATEST",
+    )
+
+
+def test_get_table_schema_create_new(analyzer, monkeypatch):
+    """Test get_table_schema when schema needs to be created.
+
+    :param analyzer: A DynamoDBSchemaAnalyzer instance
+    :type analyzer: DynamoDBSchemaAnalyzer
+    :param monkeypatch: pytest monkeypatch fixture
+    :type monkeypatch: pytest.MonkeyPatch
+    """
+    monkeypatch.setenv("MCP_DATABASE_SCHEMA_REGISTRY", "test-registry")
+
+    mock_schemas_client = MagicMock()
+    mock_schemas_client.describe_schema.side_effect = ClientError(
+        {"Error": {"Code": "ResourceNotFoundException"}},
+        "DescribeSchema",
+    )
+
+    mock_schema = {"type": "object", "properties": {}}
+    analyzer.analyze = MagicMock(return_value=mock_schema)
+
+    analyzer.session.client.return_value = mock_schemas_client
+
+    result = analyzer.get_table_schema()
+
+    assert result == mock_schema
+    mock_schemas_client.create_schema.assert_called_once_with(
+        RegistryName="test-registry",
+        SchemaName="aws.dynamodb@test-table",
+        Type="JSONSchemaDraft4",
+        Content=str(mock_schema),
+    )
+
+
+def test_get_table_schema_registry_not_found(analyzer, monkeypatch):
+    """Test get_table_schema when registry doesn't exist.
+
+    :param analyzer: A DynamoDBSchemaAnalyzer instance
+    :type analyzer: DynamoDBSchemaAnalyzer
+    :param monkeypatch: pytest monkeypatch fixture
+    :type monkeypatch: pytest.MonkeyPatch
+    """
+    monkeypatch.setenv("MCP_DATABASE_SCHEMA_REGISTRY", "test-registry")
+
+    mock_schemas_client = MagicMock()
+    mock_schemas_client.describe_schema.side_effect = ClientError(
+        {"Error": {"Code": "ResourceNotFoundException"}},
+        "DescribeSchema",
+    )
+    mock_schemas_client.create_schema.side_effect = ClientError(
+        {"Error": {"Code": "ResourceNotFoundException"}},
+        "CreateSchema",
+    )
+
+    mock_schema = {"type": "object", "properties": {}}
+    analyzer.analyze = MagicMock(return_value=mock_schema)
+
+    analyzer.session.client.return_value = mock_schemas_client
+
+    result = analyzer.get_table_schema()
+
+    assert result == mock_schema

@@ -1,7 +1,9 @@
+import os
 from typing import Iterator
 
 import boto3
 from boto3.dynamodb.types import TypeDeserializer
+from botocore.exceptions import ClientError
 
 from mcp_aws_dev.schema import SchemaInferenceAnalyzer
 
@@ -14,6 +16,63 @@ class DynamoDBSchemaAnalyzer:
     ):
         self.session = session
         self.table_name = table_name
+
+    def get_table_schema(self) -> dict:
+        """Get the schema for the DynamoDB table.
+
+        This method checks if a schema exists in the EventBridge schema registry
+        and returns it if found. Otherwise, it analyzes the table and creates
+        a new schema.
+
+        :return: The schema for the DynamoDB table
+        :rtype: dict
+        """
+        registry_name = os.environ.get("MCP_DATABASE_SCHEMA_REGISTRY")
+        if not registry_name:
+            return self.analyze()
+
+        schemas_client = self.session.client("schemas")
+        schema_name = f"aws.dynamodb@{self.table_name}"
+
+        try:
+            # Check if schema exists
+            schemas_client.describe_schema(
+                RegistryName=registry_name,
+                SchemaName=schema_name,
+            )
+            # If we get here, schema exists, get its latest version
+            response = schemas_client.describe_schema_version(
+                RegistryName=registry_name,
+                SchemaName=schema_name,
+                SchemaVersion="LATEST",
+            )
+            return response["Content"]
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ResourceNotFoundException":
+                # Schema doesn't exist, analyze and create it
+                schema = self.analyze()
+
+                try:
+                    # Create new schema version
+                    schemas_client.create_schema(
+                        RegistryName=registry_name,
+                        SchemaName=schema_name,
+                        Type="JSONSchemaDraft4",
+                        Content=str(schema),
+                    )
+                except ClientError as create_error:
+                    if (
+                        create_error.response["Error"]["Code"]
+                        == "ResourceNotFoundException"
+                    ):
+                        # Registry doesn't exist, just return the schema
+                        pass
+                    else:
+                        raise
+
+                return schema
+            else:
+                raise
 
     def analyze(self) -> dict:
         analyzer = SchemaInferenceAnalyzer()
