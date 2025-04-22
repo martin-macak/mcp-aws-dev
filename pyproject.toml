@@ -69,7 +69,9 @@ dev-dependencies = [
 dev = [
     "black>=25.1.0",
     "isort>=6.0.1",
+    "moto>=5.1.4",
     "mypy>=1.15.0",
+    "pytest-mock>=3.14.0",
     "types-boto3>=1.37.38",
     "types-docker>=7.1.0.20250416",
 ]

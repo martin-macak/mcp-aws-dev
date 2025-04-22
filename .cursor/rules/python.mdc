@@ -10,11 +10,11 @@ Provides usefool tools for developers that work on serverless applications on AW
 ## Coding Standards
 
 - Use Python 3.11 or later
-- Use [PEP 8](https://www.python.org/dev/peps/pep-0008/) - Python Style Guide
-- Use [PEP 257](https://www.python.org/dev/peps/pep-0257/) - Docstring conventions
-- Use [PEP 287](https://peps.python.org/pep-0287/) - reStructuredText for docstrings
-- Use [Black](https://black.readthedocs.io/en/stable/) - Code formatter
-- Use [Pydantic](https://docs.pydantic.dev/) - Use for models and data validation
+- Use [PEP 8](mdc:https:/www.python.org/dev/peps/pep-0008) - Python Style Guide
+- Use [PEP 257](mdc:https:/www.python.org/dev/peps/pep-0257) - Docstring conventions
+- Use [PEP 287](mdc:https:/peps.python.org/pep-0287) - reStructuredText for docstrings
+- Use [Black](mdc:https:/black.readthedocs.io/en/stable) - Code formatter
+- Use [Pydantic](mdc:https:/docs.pydantic.dev) - Use for models and data validation
 - Always use type hints
 - Always document your code
 - Always use reStructuredText for docstrings
@@ -67,10 +67,10 @@ def create_session(profile_name: str) -> boto3.Session:
 
 ## Libraries
 
-- [uv](https://github.com/astral-sh/uv) - Project manager
-- [pytest](https://docs.pytest.org/en/latest/) - Testing framework
-- [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) - AWS SDK for Python
-- [moto](https://github.com/getmoto/moto) - Mock AWS services for testing
+- [uv](mdc:https:/github.com/astral-sh/uv) - Project manager
+- [pytest](mdc:https:/docs.pytest.org/en/latest) - Testing framework
+- [boto3](mdc:https:/boto3.amazonaws.com/v1/documentation/api/latest/index.html) - AWS SDK for Python
+- [moto](mdc:https:/github.com/getmoto/moto) - Mock AWS services for testing
 
 - always use boto3 for AWS SDK
 - always mock AWS services for testing using moto
@@ -106,3 +106,19 @@ def create_session(profile_name: str) -> boto3.Session:
 - Always write tests for new functionality
 - Always run new tests to test new functionality
 - Always run all tests to prevent regression
+
+## Running python
+
+Instead of running `python`, use `uv run`
+
+For example:
+- DO: `uv run pytest ./tests`
+- DON'T `python pytest ./tests`
+
+## Installing packages
+
+Project is managed by uv. Don't run `pip`, use `uv add`
+
+For example:
+- DO: `uv add boto3`
+- DON'T: `pip install boto3`
