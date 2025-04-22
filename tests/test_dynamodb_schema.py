@@ -1,11 +1,11 @@
-from unittest.mock import MagicMock, patch
+import json
+from decimal import Decimal
+from unittest.mock import MagicMock, call, patch
 
 import boto3
 import pytest
 from botocore.exceptions import ClientError
 from moto import mock_aws
-
-from mcp_aws_dev.dynamodb_schema import DynamoDBSchemaAnalyzer
 
 
 @pytest.fixture
@@ -48,6 +48,7 @@ def test_open_sample_iterator(dynamodb_table):
     Test that open_sample_iterator correctly scans a DynamoDB table
     and deserializes the results.
     """
+    from mcp_aws_dev.dynamodb_schema import DynamoDBSchemaAnalyzer
 
     # Create a boto3 session
     session = boto3.Session(region_name="us-east-1")
@@ -85,6 +86,8 @@ def test_open_sample_iterator(dynamodb_table):
 def test_open_sample_iterator_with_limit(dynamodb_table):
     """Test that open_sample_iterator respects the num_records limit."""
     # Create a boto3 session
+    from mcp_aws_dev.dynamodb_schema import DynamoDBSchemaAnalyzer
+
     session = boto3.Session(region_name="us-east-1")
 
     # Create a DynamoDBSchemaAnalyzer
@@ -103,6 +106,8 @@ def test_open_sample_iterator_with_limit(dynamodb_table):
 def test_open_sample_iterator_with_page_size(dynamodb_table):
     """Test that open_sample_iterator respects the page_size parameter."""
     # Create a boto3 session
+    from mcp_aws_dev.dynamodb_schema import DynamoDBSchemaAnalyzer
+
     session = boto3.Session(region_name="us-east-1")
 
     # Create a DynamoDBSchemaAnalyzer
@@ -161,6 +166,8 @@ def analyzer(mock_session):
     :return: A DynamoDBSchemaAnalyzer instance
     :rtype: DynamoDBSchemaAnalyzer
     """
+    from mcp_aws_dev.dynamodb_schema import DynamoDBSchemaAnalyzer
+
     return DynamoDBSchemaAnalyzer(mock_session, "test-table")
 
 
@@ -194,8 +201,7 @@ def test_get_table_schema_existing_schema(analyzer, monkeypatch):
     monkeypatch.setenv("MCP_DATABASE_SCHEMA_REGISTRY", "test-registry")
 
     mock_schemas_client = MagicMock()
-    mock_schemas_client.describe_schema.return_value = {}
-    mock_schemas_client.describe_schema_version.return_value = {
+    mock_schemas_client.describe_schema.return_value = {
         "Content": '{"type": "object", "properties": {}}'
     }
 
@@ -204,14 +210,12 @@ def test_get_table_schema_existing_schema(analyzer, monkeypatch):
     result = analyzer.get_table_schema()
 
     assert result == '{"type": "object", "properties": {}}'
-    mock_schemas_client.describe_schema.assert_called_once_with(
-        RegistryName="test-registry",
-        SchemaName="aws.dynamodb@test-table",
-    )
-    mock_schemas_client.describe_schema_version.assert_called_once_with(
-        RegistryName="test-registry",
-        SchemaName="aws.dynamodb@test-table",
-        SchemaVersion="LATEST",
+    assert mock_schemas_client.describe_schema.call_count == 2
+    mock_schemas_client.describe_schema.assert_has_calls(
+        [
+            call(RegistryName="test-registry", SchemaName="aws.dynamodb@test-table"),
+            call(RegistryName="test-registry", SchemaName="aws.dynamodb@test-table"),
+        ]
     )
 
 
@@ -243,7 +247,7 @@ def test_get_table_schema_create_new(analyzer, monkeypatch):
         RegistryName="test-registry",
         SchemaName="aws.dynamodb@test-table",
         Type="JSONSchemaDraft4",
-        Content=str(mock_schema),
+        Content=json.dumps(mock_schema),
     )
 
 
@@ -275,3 +279,62 @@ def test_get_table_schema_registry_not_found(analyzer, monkeypatch):
     result = analyzer.get_table_schema()
 
     assert result == mock_schema
+
+
+@pytest.mark.parametrize(
+    "input_item,expected_output",
+    [
+        # Test with Decimal values
+        (
+            {"id": Decimal("1"), "value": Decimal("100.5")},
+            {"id": 1, "value": 100.5},
+        ),
+        # Test with nested dictionaries
+        (
+            {
+                "id": "1",
+                "metadata": {"count": Decimal("42"), "price": Decimal("99.99")},
+            },
+            {"id": "1", "metadata": {"count": 42, "price": 99.99}},
+        ),
+        # Test with lists containing Decimal values
+        (
+            {"id": "1", "values": [Decimal("1"), Decimal("2.5"), Decimal("3")]},
+            {"id": "1", "values": [1, 2.5, 3]},
+        ),
+        # Test with nested lists and dictionaries
+        (
+            {
+                "id": "1",
+                "items": [
+                    {"count": Decimal("10"), "price": Decimal("5.5")},
+                    {"count": Decimal("20"), "price": Decimal("10.0")},
+                ],
+            },
+            {
+                "id": "1",
+                "items": [
+                    {"count": 10, "price": 5.5},
+                    {"count": 20, "price": 10.0},
+                ],
+            },
+        ),
+        # Test with non-Decimal values (should remain unchanged)
+        (
+            {"id": "1", "name": "Test", "active": True, "count": 42},
+            {"id": "1", "name": "Test", "active": True, "count": 42},
+        ),
+    ],
+)
+def test_sanitize_dynamodb_item(input_item, expected_output):
+    """Test the _sanitize_dynamodb_item function with various input types.
+
+    :param input_item: The input item to sanitize
+    :type input_item: dict
+    :param expected_output: The expected output after sanitization
+    :type expected_output: dict
+    """
+    from mcp_aws_dev.dynamodb_schema import _sanitize_dynamodb_item
+
+    result = _sanitize_dynamodb_item(input_item)
+    assert result == expected_output

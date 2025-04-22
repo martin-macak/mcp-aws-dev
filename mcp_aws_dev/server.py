@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Tuple
 
+import boto3
 from mcp.server.fastmcp import Context, FastMCP
 
 from mcp_aws_dev.context import AppContext, AWSContext
+from mcp_aws_dev.dynamodb_schema import DynamoDBSchemaAnalyzer
 
 
 @asynccontextmanager
@@ -47,6 +49,29 @@ def aws_dev_change_profile(
     app_ctx: AppContext = ctx.request_context.lifespan_context
     app_ctx.aws_context.profile_name = profile_name
     return app_ctx.aws_context.profile_name
+
+
+@mcp.tool("aws_dev_get_dynamodb_schema")
+def aws_dev_get_dynamodb_schema(
+    table_name: str,
+    ctx: Context,
+) -> dict:
+    """
+    Get the schema for a DynamoDB table.
+    Schema is in JSONSchema-Draft-04 format.
+    """
+    app_ctx: AppContext = ctx.request_context.lifespan_context
+    profile_name = app_ctx.aws_context.profile_name
+    session = boto3.Session(
+        profile_name=profile_name,
+    )
+
+    analyzer = DynamoDBSchemaAnalyzer(
+        session=session,
+        table_name=table_name,
+    )
+    schema = analyzer.get_table_schema()
+    return schema
 
 
 @mcp.tool("aws_dev_run_script")

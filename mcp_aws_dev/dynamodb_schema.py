@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Iterator
 
@@ -41,14 +42,16 @@ class DynamoDBSchemaAnalyzer:
                 SchemaName=schema_name,
             )
             # If we get here, schema exists, get its latest version
-            response = schemas_client.describe_schema_version(
+            response = schemas_client.describe_schema(
                 RegistryName=registry_name,
                 SchemaName=schema_name,
-                SchemaVersion="LATEST",
             )
             return response["Content"]
         except ClientError as e:
-            if e.response["Error"]["Code"] == "ResourceNotFoundException":
+            if (
+                e.response["Error"]["Code"] == "ResourceNotFoundException"
+                or e.response["Error"]["Code"] == "NotFoundException"
+            ):
                 # Schema doesn't exist, analyze and create it
                 schema = self.analyze()
 
@@ -58,7 +61,7 @@ class DynamoDBSchemaAnalyzer:
                         RegistryName=registry_name,
                         SchemaName=schema_name,
                         Type="JSONSchemaDraft4",
-                        Content=str(schema),
+                        Content=json.dumps(schema),
                     )
                 except ClientError as create_error:
                     if (
@@ -120,5 +123,33 @@ class DynamoDBSchemaAnalyzer:
                 deserialized_item = {
                     k: deserializer.deserialize(v) for k, v in item.items()
                 }
-                yield deserialized_item
+                yield _sanitize_dynamodb_item(deserialized_item)
                 records_processed += 1
+
+
+def _sanitize_dynamodb_item(item: dict) -> dict:
+    """Sanitize a DynamoDB item to remove any non-serializable values.
+
+    Decimal is converted to int if it's a whole number, otherwise it's
+    converted to float.
+
+    :param item: The DynamoDB item to sanitize
+    :type item: dict
+    :return: The sanitized DynamoDB item
+    :rtype: dict
+    """
+    from decimal import Decimal
+
+    def _convert_value(value):
+        if isinstance(value, Decimal):
+            # Convert Decimal to int if it's a whole number, otherwise to float
+            if value % 1 == 0:
+                return int(value)
+            return float(value)
+        elif isinstance(value, dict):
+            return {k: _convert_value(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [_convert_value(v) for v in value]
+        return value
+
+    return _convert_value(item)
