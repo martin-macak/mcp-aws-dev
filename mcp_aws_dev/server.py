@@ -68,6 +68,7 @@ def aws_dev_run_script(
 
     Jailed script MUST NOT use subprocess module.
     Jailed script MUST NOT execute system commands.
+    Whenever you are asked to store a file, use the MCP_ARTIFACT_DIR environment variable to get the directory.
 
     This tool returns a tuple with stdout, stderr and return code of the script.
     """

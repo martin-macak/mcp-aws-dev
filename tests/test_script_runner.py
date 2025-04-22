@@ -266,3 +266,160 @@ sys.exit(42)
         
         # Verify the return code
         assert return_code == 42
+
+
+def test_run_in_jail_with_artifact_dir():
+    """Test that run_in_jail correctly handles the MCP_ARTIFACT_DIR environment variable.
+
+    This test verifies that:
+    1. When MCP_ARTIFACT_DIR is set, it's passed to the Docker container
+    2. The artifact directory is mounted in the container with the same path as on the host
+    3. The container can access the mounted directory
+    """
+    # Create a temporary directory for the work directory
+    with tempfile.TemporaryDirectory() as temp_dir:
+        work_dir = Path(temp_dir)
+        
+        # Create a temporary directory for the artifact directory
+        with tempfile.TemporaryDirectory() as artifact_temp_dir:
+            artifact_dir = Path(artifact_temp_dir)
+            
+            # Create a test file in the artifact directory
+            test_file = artifact_dir / "test.txt"
+            with open(test_file, "w") as f:
+                f.write("Test artifact content")
+            
+            # Create a simple test script
+            script = "print('Hello, world!')"
+            
+            # Create mock AWS credentials
+            aws_credentials = SessionCredentials(
+                access_key="test_access_key",
+                secret_key="test_secret_key",
+                session_token="test_session_token",
+            )
+            
+            # Set the MCP_ARTIFACT_DIR environment variable
+            os.environ["MCP_ARTIFACT_DIR"] = str(artifact_dir)
+            
+            # Mock the docker client and create_image function
+            with patch('docker.from_env') as mock_from_env, \
+                 patch('mcp_aws_dev.script_runner.create_image') as mock_create_image:
+                
+                # Set up the mocks
+                mock_client = MagicMock()
+                mock_from_env.return_value = mock_client
+                
+                mock_container = MagicMock()
+                mock_client.containers.run.return_value = mock_container
+                
+                mock_container.wait.return_value = {"StatusCode": 0}
+                mock_container.logs.return_value = b"Hello, world!\n"
+                
+                mock_create_image.return_value = "mcp_aws_test_image"
+                
+                # Call the function
+                run_in_jail(work_dir, script, aws_credentials)
+                
+                # Get the arguments passed to run
+                run_args = mock_client.containers.run.call_args[1]
+                
+                # Verify the environment variables
+                env = run_args['environment']
+                assert env["MCP_ARTIFACT_DIR"] == str(artifact_dir)
+                
+                # Verify the volumes
+                volumes = run_args['volumes']
+                assert volumes[str(work_dir)]["bind"] == "/workspace"
+                assert volumes[str(work_dir)]["mode"] == "rw"
+                assert volumes[str(artifact_dir)]["bind"] == str(artifact_dir)
+                assert volumes[str(artifact_dir)]["mode"] == "rw"
+                
+                # Clear the environment variable
+                del os.environ["MCP_ARTIFACT_DIR"]
+
+
+@pytest.mark.docker
+def test_run_in_jail_with_artifact_dir_real_docker():
+    """Test that run_in_jail works with a real Docker instance and MCP_ARTIFACT_DIR.
+
+    This test verifies that:
+    1. The Docker container can access the mounted artifact directory
+    2. The MCP_ARTIFACT_DIR environment variable is correctly set in the container
+    3. The container can read and write to the artifact directory
+    """
+    # Create a temporary directory for the work directory
+    with tempfile.TemporaryDirectory() as temp_dir:
+        work_dir = Path(temp_dir)
+        
+        # Create a temporary directory for the artifact directory
+        with tempfile.TemporaryDirectory() as artifact_temp_dir:
+            artifact_dir = Path(artifact_temp_dir)
+            
+            # Create a test file in the artifact directory
+            test_file = artifact_dir / "test.txt"
+            with open(test_file, "w") as f:
+                f.write("Test artifact content")
+            
+            # Create a test script that reads from and writes to the artifact directory
+            script = """
+import os
+import sys
+
+# Check if MCP_ARTIFACT_DIR is set
+artifact_dir = os.environ.get('MCP_ARTIFACT_DIR')
+print(f"MCP_ARTIFACT_DIR: {artifact_dir}")
+
+if artifact_dir:
+    # Read from the artifact directory
+    with open(os.path.join(artifact_dir, 'test.txt'), 'r') as f:
+        content = f.read()
+        print(f"Read from artifact: {content}")
+    
+    # Write to the artifact directory
+    with open(os.path.join(artifact_dir, 'output.txt'), 'w') as f:
+        f.write("Written from container")
+    
+    print("Successfully wrote to artifact directory")
+else:
+    print("MCP_ARTIFACT_DIR not set")
+    sys.exit(1)
+"""
+            
+            # Create AWS credentials
+            aws_credentials = SessionCredentials(
+                access_key="test_access_key",
+                secret_key="test_secret_key",
+                session_token="test_session_token",
+            )
+            
+            # Set the MCP_ARTIFACT_DIR environment variable
+            os.environ["MCP_ARTIFACT_DIR"] = str(artifact_dir)
+            
+            # First, build the Docker image
+            # Clear the cache to ensure we get a fresh image
+            create_image.cache_clear()
+            image_name = create_image()
+            
+            # Call the function with real Docker
+            stdout, stderr, return_code = run_in_jail(
+                work_dir, 
+                script, 
+                aws_credentials
+            )
+            
+            # Verify the output contains expected strings
+            assert f"MCP_ARTIFACT_DIR: {artifact_dir}" in stdout
+            assert "Read from artifact: Test artifact content" in stdout
+            assert "Successfully wrote to artifact directory" in stdout
+            
+            # Verify a file was written to the artifact directory
+            assert (artifact_dir / "output.txt").exists()
+            with open(artifact_dir / "output.txt", "r") as f:
+                assert f.read() == "Written from container"
+            
+            # Verify the return code
+            assert return_code == 0
+            
+            # Clear the environment variable
+            del os.environ["MCP_ARTIFACT_DIR"]

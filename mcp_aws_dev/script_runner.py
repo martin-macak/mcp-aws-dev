@@ -75,18 +75,36 @@ def run_in_jail(
     if env:
         docker_env.update(env)
     
+    # Set up volumes for mounting
+    volumes = {
+        str(work_dir): {
+            "bind": "/workspace",
+            "mode": "rw"
+        }
+    }
+    
+    # Check if MCP_ARTIFACT_DIR is set and add it to volumes and env
+    artifact_dir = os.environ.get("MCP_ARTIFACT_DIR")
+    if artifact_dir:
+        artifact_path = Path(artifact_dir)
+        if artifact_path.exists():
+            # Mount the artifact directory with the same path as on the host
+            volumes[str(artifact_path)] = {
+                "bind": str(artifact_path),
+                "mode": "rw"
+            }
+            # Pass the same path to the container
+            docker_env["MCP_ARTIFACT_DIR"] = str(artifact_path)
+    else:
+        docker_env["MCP_ARTIFACT_DIR"] = str(work_dir)
+    
     # Create and run the Docker container
     client = docker.from_env()
     container = client.containers.run(
         image=image_name,
         command=["python", "/workspace/script.py"],
         environment=docker_env,
-        volumes={
-            str(work_dir): {
-                "bind": "/workspace",
-                "mode": "rw"
-            }
-        },
+        volumes=volumes,
         detach=True
     )
     
