@@ -1,3 +1,4 @@
+import json
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Tuple
 
@@ -55,7 +56,7 @@ def aws_dev_change_profile(
 def aws_dev_get_dynamodb_schema(
     table_name: str,
     ctx: Context,
-) -> dict:
+) -> str:
     """
     Get the schema for a DynamoDB table.
     Schema is in JSONSchema-Draft-04 format.
@@ -71,7 +72,7 @@ def aws_dev_get_dynamodb_schema(
         table_name=table_name,
     )
     schema = analyzer.get_table_schema()
-    return schema
+    return json.dumps(schema)
 
 
 @mcp.tool("aws_dev_run_script")
