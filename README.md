@@ -13,9 +13,7 @@ Put this into your mcp config
     "run",
     "--project",
     "/Users/martinmacak/projects/mcp-aws-dev",
-    "mcp",
-    "run",
-    "/Users/martinmacak/projects/mcp-aws-dev/mcp_aws_dev/server.py"
+    "mcp-aws-dev"
     ]
 }
 ```
