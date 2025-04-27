@@ -9,6 +9,7 @@ from mcp.server.fastmcp import Context, FastMCP
 
 from mcp_aws_dev.context import AppContext, AWSContext
 from mcp_aws_dev.dynamodb_schema import DynamoDBSchemaAnalyzer
+from mcp_aws_dev.knowledge_base import list_knowledge_bases
 
 
 @asynccontextmanager
@@ -131,6 +132,21 @@ def aws_dev_run_script(
         raise Exception(f"Script failed with return code {return_code}")
 
     return stdout, stderr, return_code
+
+
+@mcp.tool("aws_list_knowledge_bases")
+def aws_list_knowledge_bases(ctx: Context) -> str:
+    """List knowledge bases from AWS_KNOWLEDGE_BASES environment variable.
+
+    This function checks the AWS_KNOWLEDGE_BASES environment variable for knowledge base
+    configurations. Each knowledge base should be in the format:
+    profile/${awsProfile}:${knowledgeBaseId}/${knowledgeBaseName}
+
+    :return: JSON string containing knowledge bases
+    :rtype: str
+    :raises ValueError: If AWS_KNOWLEDGE_BASES environment variable is not set
+    """
+    return list_knowledge_bases()
 
 
 def main():
