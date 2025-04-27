@@ -16,7 +16,11 @@ Put this into your mcp config
     "--project",
     "/Users/martinmacak/projects/mcp-aws-dev",
     "mcp-aws-dev"
-    ]
+    ],
+    "env":{
+        "AWS_REGION": "eu-west-1",
+        "AWS_DEFAULT_REGION": "eu-west-1"
+    }
 }
 ```
 
