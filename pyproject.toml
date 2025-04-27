@@ -52,7 +52,7 @@ venv = ".venv"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
-ignore = ["I001"]
+ignore = ["I001", "E501"]
 
 [tool.ruff]
 line-length = 88

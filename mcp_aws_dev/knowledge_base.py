@@ -137,11 +137,7 @@ def query_knowledge_base(
                 "type": "KNOWLEDGE_BASE",
                 "knowledgeBaseConfiguration": {
                     "knowledgeBaseId": knowledge_base_id,
-                    "modelArn": (
-                        f"arn:aws:bedrock:{aws_region}::"
-                        + "foundation-model/"
-                        + "eu.anthropic.claude-3-7-sonnet-20250219-v1:0"
-                    ),
+                    "modelArn": f"arn:aws:bedrock:{aws_region}::inference-profile/eu.anthropic.claude-3-7-sonnet-20250219-v1:0",
                 },
             },
         )

@@ -135,7 +135,7 @@ def test_query_knowledge_base_success():
                     "knowledgeBaseId": knowledge_base_id,
                     "modelArn": (
                         f"arn:aws:bedrock:{session.region_name}::"
-                        + "foundation-model/"
+                        + "inference-profile/"
                         + "eu.anthropic.claude-3-7-sonnet-20250219-v1:0"
                     ),
                 },
@@ -261,7 +261,7 @@ def test_query_knowledge_base_different_model():
                     "knowledgeBaseId": knowledge_base_id,
                     "modelArn": (
                         f"arn:aws:bedrock:{session.region_name}::"
-                        + "foundation-model/"
+                        + "inference-profile/"
                         + "eu.anthropic.claude-3-7-sonnet-20250219-v1:0"
                     ),
                 },
