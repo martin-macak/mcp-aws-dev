@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/martinmacak/mcp-aws-dev/actions/workflows/build.yml/badge.svg?branch=main)]
+[![Build](https://github.com/martin-macak/mcp-aws-dev/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/martin-macak/mcp-aws-dev/actions/workflows/build.yml)
 
 # MCP for development on AWS
 
