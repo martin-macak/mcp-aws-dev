@@ -5,7 +5,8 @@ import pytest
 from botocore.exceptions import ClientError
 
 from mcp_aws_dev.knowledge_base import (list_knowledge_bases,
-                                        query_knowledge_base)
+                                        query_knowledge_base,
+                                        get_account_id)
 
 
 @pytest.fixture(autouse=True)
@@ -116,7 +117,8 @@ def test_query_knowledge_base_success():
         ],
     }
 
-    with patch("boto3.Session.client") as mock_client:
+    with patch("boto3.Session.client") as mock_client, \
+         patch("mcp_aws_dev.knowledge_base.get_account_id", return_value="123456789012"):
         mock_bedrock = MagicMock()
         mock_client.return_value = mock_bedrock
         mock_bedrock.retrieve_and_generate.return_value = mock_response
@@ -134,7 +136,7 @@ def test_query_knowledge_base_success():
                 "knowledgeBaseConfiguration": {
                     "knowledgeBaseId": knowledge_base_id,
                     "modelArn": (
-                        f"arn:aws:bedrock:{session.region_name}::"
+                        f"arn:aws:bedrock:{session.region_name}:123456789012:"
                         + "inference-profile/"
                         + "eu.anthropic.claude-3-7-sonnet-20250219-v1:0"
                     ),
@@ -243,7 +245,8 @@ def test_query_knowledge_base_different_model():
         "citations": [],
     }
 
-    with patch("boto3.Session.client") as mock_client:
+    with patch("boto3.Session.client") as mock_client, \
+         patch("mcp_aws_dev.knowledge_base.get_account_id", return_value="123456789012"):
         mock_bedrock = MagicMock()
         mock_client.return_value = mock_bedrock
         mock_bedrock.retrieve_and_generate.return_value = mock_response
@@ -260,7 +263,7 @@ def test_query_knowledge_base_different_model():
                 "knowledgeBaseConfiguration": {
                     "knowledgeBaseId": knowledge_base_id,
                     "modelArn": (
-                        f"arn:aws:bedrock:{session.region_name}::"
+                        f"arn:aws:bedrock:{session.region_name}:123456789012:"
                         + "inference-profile/"
                         + "eu.anthropic.claude-3-7-sonnet-20250219-v1:0"
                     ),

@@ -128,6 +128,7 @@ def query_knowledge_base(
     :raises ClientError: If there is an error querying the knowledge base.
     """
     aws_region = session.region_name
+    aws_account_id = get_account_id(session)
     bedrock_client = session.client("bedrock-agent-runtime")
 
     try:
@@ -137,7 +138,7 @@ def query_knowledge_base(
                 "type": "KNOWLEDGE_BASE",
                 "knowledgeBaseConfiguration": {
                     "knowledgeBaseId": knowledge_base_id,
-                    "modelArn": f"arn:aws:bedrock:{aws_region}::inference-profile/eu.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                    "modelArn": f"arn:aws:bedrock:{aws_region}:{aws_account_id}:inference-profile/eu.anthropic.claude-3-7-sonnet-20250219-v1:0",
                 },
             },
         )
@@ -150,3 +151,14 @@ def query_knowledge_base(
         if e.response["Error"]["Code"] == "ResourceNotFoundException":
             raise ValueError(f"Knowledge base with ID {knowledge_base_id} not found")
         raise
+
+
+def get_account_id(session: boto3.Session) -> str:
+    """Get the AWS account ID for the current session.
+
+    :param session: The boto3 session to use for the query.
+    :type session: boto3.Session
+    :return: The AWS account ID.
+    :rtype: str
+    """
+    return session.client("sts").get_caller_identity()["Account"]
