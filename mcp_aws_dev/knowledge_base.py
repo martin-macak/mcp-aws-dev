@@ -9,31 +9,34 @@ import re
 from typing import List
 
 import boto3
-from pydantic import BaseModel, Field
 from botocore.exceptions import ClientError
+from pydantic import BaseModel, Field
 
 
 class KnowledgeBase(BaseModel):
     """Represents a knowledge base configuration.
 
-    :ivar knowledgeBaseId: The ID of the knowledge base.
-    :type knowledgeBaseId: str
-    :ivar knowledgeBaseName: The name of the knowledge base.
-    :type knowledgeBaseName: str
+    :ivar aws_profile: The AWS profile name.
+    :type aws_profile: str
+    :ivar knowledge_base_id: The ID of the knowledge base.
+    :type knowledge_base_id: str
+    :ivar knowledge_base_name: The name of the knowledge base.
+    :type knowledge_base_name: str
     """
 
-    knowledgeBaseId: str = Field(description="The ID of the knowledge base.")
-    knowledgeBaseName: str = Field(description="The name of the knowledge base.")
+    aws_profile: str = Field(description="The AWS profile name.")
+    knowledge_base_id: str = Field(description="The ID of the knowledge base.")
+    knowledge_base_name: str = Field(description="The name of the knowledge base.")
 
 
 class KnowledgeBasesResponse(BaseModel):
     """Represents the response containing knowledge bases.
 
-    :ivar knowledgeBases: List of knowledge bases.
-    :type knowledgeBases: List[KnowledgeBase]
+    :ivar knowledge_bases: List of knowledge bases.
+    :type knowledge_bases: List[KnowledgeBase]
     """
 
-    knowledgeBases: List[KnowledgeBase] = Field(description="List of knowledge bases.")
+    knowledge_bases: List[KnowledgeBase] = Field(description="List of knowledge bases.")
 
 
 class KnowledgeBaseQueryResponse(BaseModel):
@@ -46,11 +49,13 @@ class KnowledgeBaseQueryResponse(BaseModel):
     """
 
     answer: str = Field(description="The answer to the query.")
-    citations: List[dict] = Field(description="List of citations used to generate the answer.")
+    citations: List[dict] = Field(
+        description="List of citations used to generate the answer."
+    )
 
 
 @functools.cache
-def list_knowledge_bases() -> str:
+def list_knowledge_bases() -> List[KnowledgeBase]:
     """List knowledge bases from AWS_KNOWLEDGE_BASES environment variable.
 
     This function checks the AWS_KNOWLEDGE_BASES environment variable for knowledge base
@@ -64,8 +69,8 @@ def list_knowledge_bases() -> str:
     knowledgeBaseId = R0QO4WPOIJ
     knowledgeBaseName = my-org-sw-engineer-kb
 
-    :return: JSON string containing knowledge bases
-    :rtype: str
+    :return: List of knowledge bases
+    :rtype: List[KnowledgeBase]
     :raises ValueError: If AWS_KNOWLEDGE_BASES environment variable is not set or empty
     """
     try:
@@ -91,13 +96,13 @@ def list_knowledge_bases() -> str:
 
         knowledge_bases.append(
             KnowledgeBase(
-                knowledgeBaseId=match.group(2),
-                knowledgeBaseName=match.group(3),
+                aws_profile=match.group(1),
+                knowledge_base_id=match.group(2),
+                knowledge_base_name=match.group(3),
             )
         )
 
-    response = KnowledgeBasesResponse(knowledgeBases=knowledge_bases)
-    return response.model_dump_json(indent=2)
+    return knowledge_bases
 
 
 def query_knowledge_base(
@@ -108,7 +113,8 @@ def query_knowledge_base(
     """Query a knowledge base using Amazon Bedrock.
 
     This function queries a knowledge base using Amazon Bedrock's knowledge base API.
-    It returns a response containing the answer, citations, confidence score, and source attributions.
+    It returns a response containing the answer, citations, confidence score, and
+    source attributions.
 
     :param session: The boto3 session to use for the query.
     :type session: boto3.Session
@@ -131,7 +137,11 @@ def query_knowledge_base(
                 "type": "KNOWLEDGE_BASE",
                 "knowledgeBaseConfiguration": {
                     "knowledgeBaseId": knowledge_base_id,
-                    "modelArn": f"arn:aws:bedrock:{aws_region}::foundation-model/eu.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                    "modelArn": (
+                        f"arn:aws:bedrock:{aws_region}::"
+                        + "foundation-model/"
+                        + "eu.anthropic.claude-3-7-sonnet-20250219-v1:0"
+                    ),
                 },
             },
         )

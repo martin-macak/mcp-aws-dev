@@ -1,11 +1,11 @@
-import json
 from unittest.mock import MagicMock, patch
 
 import boto3
 import pytest
 from botocore.exceptions import ClientError
 
-from mcp_aws_dev.knowledge_base import list_knowledge_bases, query_knowledge_base
+from mcp_aws_dev.knowledge_base import (list_knowledge_bases,
+                                        query_knowledge_base)
 
 
 @pytest.fixture(autouse=True)
@@ -26,15 +26,10 @@ def test_aws_list_knowledge_bases_single_entry(monkeypatch):
     result = list_knowledge_bases()
 
     # Verify
-    expected = {
-        "knowledgeBases": [
-            {
-                "knowledgeBaseId": "R0QO4WPOIJ",
-                "knowledgeBaseName": "my-org-sw-engineer-kb",
-            }
-        ]
-    }
-    assert json.loads(result) == expected
+    assert len(result) == 1
+    assert result[0].aws_profile == "my-org-ai-tools/MyOrgAiToolsAdmin"
+    assert result[0].knowledge_base_id == "R0QO4WPOIJ"
+    assert result[0].knowledge_base_name == "my-org-sw-engineer-kb"
 
 
 def test_aws_list_knowledge_bases_multiple_entries(monkeypatch):
@@ -49,19 +44,13 @@ def test_aws_list_knowledge_bases_multiple_entries(monkeypatch):
     result = list_knowledge_bases()
 
     # Verify
-    expected = {
-        "knowledgeBases": [
-            {
-                "knowledgeBaseId": "R0QO4WPOIJ",
-                "knowledgeBaseName": "my-org-sw-engineer-kb",
-            },
-            {
-                "knowledgeBaseId": "ABC123",
-                "knowledgeBaseName": "another-kb",
-            },
-        ]
-    }
-    assert json.loads(result) == expected
+    assert len(result) == 2
+    assert result[0].aws_profile == "my-org-ai-tools/MyOrgAiToolsAdmin"
+    assert result[0].knowledge_base_id == "R0QO4WPOIJ"
+    assert result[0].knowledge_base_name == "my-org-sw-engineer-kb"
+    assert result[1].aws_profile == "my-org-ai-tools/MyOrgAiToolsAdmin"
+    assert result[1].knowledge_base_id == "ABC123"
+    assert result[1].knowledge_base_name == "another-kb"
 
 
 def test_aws_list_knowledge_bases_invalid_entry(monkeypatch):
@@ -76,15 +65,9 @@ def test_aws_list_knowledge_bases_invalid_entry(monkeypatch):
     result = list_knowledge_bases()
 
     # Verify
-    expected = {
-        "knowledgeBases": [
-            {
-                "knowledgeBaseId": "R0QO4WPOIJ",
-                "knowledgeBaseName": "my-org-sw-engineer-kb",
-            }
-        ]
-    }
-    assert json.loads(result) == expected
+    assert len(result) == 1
+    assert result[0].knowledge_base_id == "R0QO4WPOIJ"
+    assert result[0].knowledge_base_name == "my-org-sw-engineer-kb"
 
 
 def test_aws_list_knowledge_bases_missing_env_var(monkeypatch):
@@ -93,7 +76,9 @@ def test_aws_list_knowledge_bases_missing_env_var(monkeypatch):
     monkeypatch.delenv("AWS_KNOWLEDGE_BASES", raising=False)
 
     # Execute and verify
-    with pytest.raises(ValueError, match="AWS_KNOWLEDGE_BASES environment variable is not set"):
+    with pytest.raises(
+        ValueError, match="AWS_KNOWLEDGE_BASES environment variable is not set"
+    ):
         list_knowledge_bases()
 
 
@@ -103,7 +88,9 @@ def test_aws_list_knowledge_bases_empty_env_var(monkeypatch):
     monkeypatch.setenv("AWS_KNOWLEDGE_BASES", "")
 
     # Execute and verify
-    with pytest.raises(ValueError, match="AWS_KNOWLEDGE_BASES environment variable is not set"):
+    with pytest.raises(
+        ValueError, match="AWS_KNOWLEDGE_BASES environment variable is not set"
+    ):
         list_knowledge_bases()
 
 
@@ -146,7 +133,11 @@ def test_query_knowledge_base_success():
                 "type": "KNOWLEDGE_BASE",
                 "knowledgeBaseConfiguration": {
                     "knowledgeBaseId": knowledge_base_id,
-                    "modelArn": f"arn:aws:bedrock:{session.region_name}::foundation-model/eu.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                    "modelArn": (
+                        f"arn:aws:bedrock:{session.region_name}::"
+                        + "foundation-model/"
+                        + "eu.anthropic.claude-3-7-sonnet-20250219-v1:0"
+                    ),
                 },
             },
         )
@@ -168,7 +159,9 @@ def test_query_knowledge_base_not_found():
         )
 
         # Execute and verify
-        with pytest.raises(ValueError, match=f"Knowledge base with ID {knowledge_base_id} not found"):
+        with pytest.raises(
+            ValueError, match=f"Knowledge base with ID {knowledge_base_id} not found"
+        ):
             query_knowledge_base(session, knowledge_base_id, query)
 
 
@@ -266,7 +259,11 @@ def test_query_knowledge_base_different_model():
                 "type": "KNOWLEDGE_BASE",
                 "knowledgeBaseConfiguration": {
                     "knowledgeBaseId": knowledge_base_id,
-                    "modelArn": f"arn:aws:bedrock:{session.region_name}::foundation-model/eu.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                    "modelArn": (
+                        f"arn:aws:bedrock:{session.region_name}::"
+                        + "foundation-model/"
+                        + "eu.anthropic.claude-3-7-sonnet-20250219-v1:0"
+                    ),
                 },
             },
         )
@@ -311,4 +308,4 @@ def test_query_knowledge_base_throttling():
         # Execute and verify
         with pytest.raises(ClientError) as exc_info:
             query_knowledge_base(session, knowledge_base_id, query)
-        assert exc_info.value.response["Error"]["Code"] == "ThrottlingException" 
+        assert exc_info.value.response["Error"]["Code"] == "ThrottlingException"

@@ -9,7 +9,10 @@ from mcp.server.fastmcp import Context, FastMCP
 
 from mcp_aws_dev.context import AppContext, AWSContext
 from mcp_aws_dev.dynamodb_schema import DynamoDBSchemaAnalyzer
-from mcp_aws_dev.knowledge_base import list_knowledge_bases
+from mcp_aws_dev.knowledge_base import (KnowledgeBase,
+                                        KnowledgeBaseQueryResponse,
+                                        list_knowledge_bases,
+                                        query_knowledge_base)
 
 
 @asynccontextmanager
@@ -135,7 +138,7 @@ def aws_dev_run_script(
 
 
 @mcp.tool("aws_list_knowledge_bases")
-def aws_list_knowledge_bases(ctx: Context) -> str:
+def aws_list_knowledge_bases(ctx: Context) -> list[KnowledgeBase]:
     """List knowledge bases from AWS_KNOWLEDGE_BASES environment variable.
 
     This function checks the AWS_KNOWLEDGE_BASES environment variable for knowledge base
@@ -147,6 +150,54 @@ def aws_list_knowledge_bases(ctx: Context) -> str:
     :raises ValueError: If AWS_KNOWLEDGE_BASES environment variable is not set
     """
     return list_knowledge_bases()
+
+
+def aws_dev_query_knowledge_base(
+    knowledge_base: str,
+    query: str,
+    ctx: Context,
+) -> KnowledgeBaseQueryResponse:
+    """Query a knowledge base using Amazon Bedrock.
+
+    This function queries a knowledge base using Amazon Bedrock's knowledge base API.
+    It first finds the matching knowledge base by ID or name, then uses the associated
+    AWS profile to create a session and query the knowledge base.
+
+    :param knowledge_base: The ID or name of the knowledge base to query.
+    :type knowledge_base: str
+    :param query: The query to send to the knowledge base.
+    :type query: str
+    :param ctx: The context object containing the application context.
+    :type ctx: Context
+    :return: The response from the knowledge base query.
+    :rtype: KnowledgeBaseQueryResponse
+    :raises ValueError: If no matching knowledge base is found.
+    """
+    # Get all knowledge bases
+    knowledge_bases = list_knowledge_bases()
+
+    # Find matching knowledge base by ID or name
+    matching_kb = None
+    for kb in knowledge_bases:
+        if (
+            kb.knowledge_base_id == knowledge_base
+            or kb.knowledge_base_name == knowledge_base
+        ):
+            matching_kb = kb
+            break
+
+    if not matching_kb:
+        raise ValueError(f"No knowledge base found with ID or name: {knowledge_base}")
+
+    # Create AWS session with the profile from the knowledge base
+    session = boto3.Session(profile_name=matching_kb.aws_profile)
+
+    # Query the knowledge base
+    return query_knowledge_base(
+        session=session,
+        knowledge_base_id=matching_kb.knowledge_base_id,
+        query=query,
+    )
 
 
 def main():
