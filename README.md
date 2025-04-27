@@ -1,3 +1,5 @@
+[![Build Status](https://github.com/martinmacak/mcp-aws-dev/actions/workflows/build.yml/badge.svg?branch=main)]
+
 # MCP for development on AWS
 
 ## Local testing
