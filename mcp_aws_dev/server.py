@@ -152,6 +152,7 @@ def aws_list_knowledge_bases(ctx: Context) -> list[KnowledgeBase]:
     return list_knowledge_bases()
 
 
+@mcp.tool("aws_dev_query_knowledge_base")
 def aws_dev_query_knowledge_base(
     knowledge_base: str,
     query: str,
