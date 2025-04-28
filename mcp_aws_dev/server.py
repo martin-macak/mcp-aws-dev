@@ -63,11 +63,17 @@ def aws_dev_get_dynamodb_schema(
     table_name: str,
     artifact_name: str,
     ctx: Context,
+    filter_expression: str | None = None,
+    filter_expression_values: dict | None = None,
+    filter_expression_names: dict | None = None,
 ) -> str:
     """
     Get the schema for a DynamoDB table and save it to an artifact file with given name.
     Schema is in JSONSchema-Draft-04 format.
     The artifact is saved in the MCP_ARTIFACT_DIR environment variable.
+    Function supports filter expression to filter the items in the table. Use
+    expression_attribute_values and expression_attribute_names to pass values and names
+    for the filter expression.
     Returns the path to the artifact file.
     """
     app_ctx: AppContext = ctx.request_context.lifespan_context
@@ -80,7 +86,11 @@ def aws_dev_get_dynamodb_schema(
         session=session,
         table_name=table_name,
     )
-    schema = analyzer.get_table_schema()
+    schema = analyzer.get_table_schema(
+        filter_expression=filter_expression,
+        expression_attribute_values=filter_expression_values,
+        expression_attribute_names=filter_expression_names,
+    )
     schema_str = json.dumps(schema)
 
     artifact_dir = Path(os.environ["MCP_ARTIFACT_DIR"])

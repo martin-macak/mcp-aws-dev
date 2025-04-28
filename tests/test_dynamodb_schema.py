@@ -338,3 +338,82 @@ def test_sanitize_dynamodb_item(input_item, expected_output):
 
     result = _sanitize_dynamodb_item(input_item)
     assert result == expected_output
+
+
+def test_open_sample_iterator_with_filter_expression(dynamodb_table):
+    """Test that open_sample_iterator correctly applies filter expressions."""
+    from mcp_aws_dev.dynamodb_schema import DynamoDBSchemaAnalyzer
+
+    # Create a boto3 session
+    session = boto3.Session(region_name="us-east-1")
+
+    # Create a DynamoDBSchemaAnalyzer
+    analyzer = DynamoDBSchemaAnalyzer(session=session, table_name="test-table")
+
+    # Call open_sample_iterator with a filter expression
+    iterator = analyzer.open_sample_iterator(
+        num_records=10,
+        filter_expression="#v > :val",
+        expression_attribute_names={"#v": "value"},
+        expression_attribute_values={":val": {"N": "150"}},
+    )
+
+    # Convert iterator to list
+    items = list(iterator)
+
+    # Verify the results - should only get items with value > 150
+    assert len(items) == 2  # Items 2 and 3 have values > 150
+    assert all(item["value"] > 150 for item in items)
+
+
+def test_get_table_schema_with_filter_expression(analyzer, monkeypatch):
+    """Test get_table_schema when filter_expression is provided.
+
+    :param analyzer: A DynamoDBSchemaAnalyzer instance
+    :type analyzer: DynamoDBSchemaAnalyzer
+    :param monkeypatch: pytest monkeypatch fixture
+    :type monkeypatch: pytest.MonkeyPatch
+    """
+    monkeypatch.delenv("MCP_DATABASE_SCHEMA_REGISTRY", raising=False)
+
+    mock_schema = {"type": "object", "properties": {}}
+    mock_analyze = MagicMock(return_value=mock_schema)
+    analyzer.analyze = mock_analyze
+
+    filter_expression = "value > :val"
+    result = analyzer.get_table_schema(filter_expression=filter_expression)
+
+    assert result == mock_schema
+    mock_analyze.assert_called_once_with(filter_expression=filter_expression)
+
+
+def test_analyze_with_filter_expression(analyzer):
+    """Test analyze method with filter expression.
+
+    :param analyzer: A DynamoDBSchemaAnalyzer instance
+    :type analyzer: DynamoDBSchemaAnalyzer
+    """
+    # Mock the open_sample_iterator method
+    mock_iterator = MagicMock()
+    mock_open_sample_iterator = MagicMock(return_value=mock_iterator)
+    analyzer.open_sample_iterator = mock_open_sample_iterator
+
+    # Mock the SchemaInferenceAnalyzer
+    mock_schema_analyzer = MagicMock()
+    with patch("mcp_aws_dev.dynamodb_schema.SchemaInferenceAnalyzer") as mock_analyzer_class:
+        mock_analyzer_class.return_value = mock_schema_analyzer
+        mock_schema_analyzer.infer_schema.return_value = {"type": "object", "properties": {}}
+
+        filter_expression = "value > :val"
+        result = analyzer.analyze(filter_expression=filter_expression)
+
+        # Verify that open_sample_iterator was called with the filter expression
+        mock_open_sample_iterator.assert_called_once_with(
+            num_records=10000,
+            page_size=100,
+            filter_expression=filter_expression,
+        )
+
+        # Verify that the schema was inferred
+        mock_schema_analyzer.infer_schema.assert_called_once_with(schema_type="JSONSchema-Draft-07")
+        assert result == {"type": "object", "properties": {}}

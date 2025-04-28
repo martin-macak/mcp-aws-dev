@@ -18,19 +18,30 @@ class DynamoDBSchemaAnalyzer:
         self.session = session
         self.table_name = table_name
 
-    def get_table_schema(self) -> dict:
+    def get_table_schema(
+        self,
+        filter_expression: str | None = None,
+        expression_attribute_values: dict | None = None,
+        expression_attribute_names: dict | None = None,
+    ) -> dict:
         """Get the schema for the DynamoDB table.
 
         This method checks if a schema exists in the EventBridge schema registry
         and returns it if found. Otherwise, it analyzes the table and creates
         a new schema.
 
+        :param filter_expression: Optional filter expression to apply to the scan
+        :type filter_expression: str | None
+        :param expression_attribute_values: Values for the expression attributes in the filter expression
+        :type expression_attribute_values: dict | None
+        :param expression_attribute_names: Names for the expression attributes in the filter expression
+        :type expression_attribute_names: dict | None
         :return: The schema for the DynamoDB table
         :rtype: dict
         """
         registry_name = os.environ.get("MCP_DATABASE_SCHEMA_REGISTRY")
         if not registry_name:
-            return self.analyze()
+            return self.analyze(filter_expression=filter_expression)
 
         schemas_client = self.session.client("schemas")
         schema_name = f"aws.dynamodb@{self.table_name}"
@@ -53,7 +64,11 @@ class DynamoDBSchemaAnalyzer:
                 or e.response["Error"]["Code"] == "NotFoundException"
             ):
                 # Schema doesn't exist, analyze and create it
-                schema = self.analyze()
+                schema = self.analyze(
+                    filter_expression=filter_expression,
+                    expression_attribute_values=expression_attribute_values,
+                    expression_attribute_names=expression_attribute_names,
+                )
 
                 try:
                     # Create new schema version
@@ -77,11 +92,23 @@ class DynamoDBSchemaAnalyzer:
             else:
                 raise
 
-    def analyze(self) -> dict:
+    def analyze(
+        self,
+        filter_expression: str | None = None,
+    ) -> dict:
+        """Analyze the DynamoDB table and infer its schema.
+
+        :param filter_expression: Optional filter expression to apply to the scan
+        :type filter_expression: str | None
+        :return: The inferred schema for the DynamoDB table
+        :rtype: dict
+        """
         analyzer = SchemaInferenceAnalyzer()
 
         sample_iterator = self.open_sample_iterator(
-            num_records=1000,
+            num_records=10000,
+            page_size=100,
+            filter_expression=filter_expression,
         )
 
         for record in sample_iterator:
@@ -93,6 +120,9 @@ class DynamoDBSchemaAnalyzer:
         self,
         num_records: int,
         page_size: int = 100,
+        filter_expression: str | None = None,
+        expression_attribute_values: dict | None = None,
+        expression_attribute_names: dict | None = None,
     ) -> Iterator[dict]:
         """Open an iterator to scan a DynamoDB table with pagination.
 
@@ -103,6 +133,12 @@ class DynamoDBSchemaAnalyzer:
         :type num_records: int
         :param page_size: Number of records to fetch per page
         :type page_size: int
+        :param filter_expression: Optional filter expression to apply to the scan
+        :type filter_expression: str | None
+        :param expression_attribute_values: Values for the expression attributes in the filter expression
+        :type expression_attribute_values: dict | None
+        :param expression_attribute_names: Names for the expression attributes in the filter expression
+        :type expression_attribute_names: dict | None
         :return: Iterator that yields deserialized records
         :rtype: Iterator[dict]
         """
@@ -111,10 +147,18 @@ class DynamoDBSchemaAnalyzer:
         deserializer = TypeDeserializer()
 
         records_processed = 0
+        scan_params = {
+            "TableName": self.table_name,
+            "PaginationConfig": {"PageSize": page_size},
+        }
+        if filter_expression:
+            scan_params["FilterExpression"] = filter_expression
+            if expression_attribute_values:
+                scan_params["ExpressionAttributeValues"] = expression_attribute_values
+            if expression_attribute_names:
+                scan_params["ExpressionAttributeNames"] = expression_attribute_names
 
-        for page in paginator.paginate(
-            TableName=self.table_name, PaginationConfig={"PageSize": page_size}
-        ):
+        for page in paginator.paginate(**scan_params):
             for item in page.get("Items", []):
                 if records_processed >= num_records:
                     return
